@@ -101,21 +101,31 @@
         <!-- CONTEÚDO PRINCIPAL -->
         <main class="flex-1 flex flex-col h-full bg-gray-50 dark:bg-gray-900 overflow-hidden">
             <!-- Header -->
-            <header class="h-16 bg-white dark:bg-gray-800 shadow-sm flex items-center justify-between px-4 z-10">
+            <header class="min-h-[4rem] bg-white dark:bg-gray-800 shadow-sm flex flex-wrap items-center justify-between px-4 py-2 gap-3 z-10">
                 <div class="flex items-center gap-4">
                     <button onclick="toggleSidebar()" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white p-2">
                         <i class="fas fa-bars text-xl"></i>
                     </button>
-                    <h2 id="current-view-title" class="text-lg font-semibold">Selecione um mês</h2>
+                    <h2 id="current-view-title" class="text-lg font-semibold truncate">Selecione um mês</h2>
                 </div>
-                <div class="flex gap-2">
+                
+                <div class="flex flex-wrap items-center gap-2">
+                    <!-- Botões de Projeto (Load / Save) -->
+                    <button onclick="loadProjectLocal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded shadow flex items-center gap-2 text-sm transition" title="Carregar Projeto do PC">
+                        <i class="fas fa-folder-open"></i> <span class="hidden lg:inline">Carregar</span>
+                    </button>
+                    <button onclick="saveProjectLocal()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded shadow flex items-center gap-2 text-sm transition mr-2" title="Salvar Projeto no PC">
+                        <i class="fas fa-save"></i> <span class="hidden lg:inline">Salvar</span>
+                    </button>
+                    
+                    <!-- Botões de Exportação -->
                     <button onclick="exportToPDF()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded shadow flex items-center gap-2 text-sm transition" title="Exportar PDF">
                         <i class="fas fa-file-pdf"></i> <span class="hidden sm:inline">PDF</span>
                     </button>
                     <button onclick="exportToXLS()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded shadow flex items-center gap-2 text-sm transition" title="Exportar Excel">
                         <i class="fas fa-file-excel"></i> <span class="hidden sm:inline">Excel</span>
                     </button>
-                    <button onclick="logout()" class="text-gray-500 hover:text-red-500 px-3 py-2">
+                    <button onclick="logout()" class="text-gray-500 hover:text-red-500 px-3 py-2 ml-1" title="Sair">
                         <i class="fas fa-sign-out-alt"></i>
                     </button>
                 </div>
@@ -159,7 +169,7 @@
         function showErrorLog(message, error) {
             const logDiv = document.getElementById('error-log');
             const msgSpan = document.getElementById('error-message');
-            msgSpan.textContent = `[ERRO] ${message}: ${error.message || error}`;
+            msgSpan.textContent = `[ERRO] ${message}: ${error?.message || error}`;
             logDiv.classList.remove('hidden');
             console.error(message, error);
             setTimeout(() => logDiv.classList.add('hidden'), 10000);
@@ -181,7 +191,7 @@
         let currentUser = null;
         let appData = {
             "2026": {
-                "Janeiro": { rate: 50, selectedHours: ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"], records: [] }
+                "Janeiro": { rate: 50, selectedHours: ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"], records: [], dayNotes: {} }
             }
         };
         let currentYear = "2026";
@@ -368,7 +378,7 @@
         const addMonth = withLog(async (year) => {
             const monthName = prompt("Digite o nome do mês (ex: Fevereiro):");
             if (monthName && monthName.trim() !== "" && !appData[year][monthName]) {
-                appData[year][monthName] = { rate: 0, selectedHours: [], records: [] };
+                appData[year][monthName] = { rate: 0, selectedHours: [], records: [], dayNotes: {} };
                 await saveDataToCloud();
             }
         }, "Erro ao adicionar mês");
@@ -402,6 +412,7 @@
         const clearMonthData = withLog(async () => {
             if (confirm(`Limpar todos os registros de ${currentMonth}?`)) {
                 appData[currentYear][currentMonth].records = [];
+                appData[currentYear][currentMonth].dayNotes = {};
                 await saveDataToCloud();
                 renderMonthView();
             }
@@ -447,14 +458,16 @@
                 dayOptions += `<option value="${i}" ${i === currentSelectedDay ? 'selected' : ''}>${label}</option>`;
             }
 
+            const currentDayNote = (data.dayNotes && data.dayNotes[currentSelectedDay]) ? data.dayNotes[currentSelectedDay] : "";
+
             let html = `
-                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6 flex flex-col sm:flex-row gap-4 items-end">
-                    <div class="w-full sm:w-1/3">
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6 flex flex-col md:flex-row gap-4 items-end">
+                    <div class="w-full md:w-1/3">
                         <label class="block text-sm text-gray-500 dark:text-gray-400 mb-1">Valor da Hora (R$)</label>
-                        <input type="number" id="input-rate" value="${data.rate}" onchange="updateMonthRate()" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 outline-none focus:ring-1 focus:ring-primary">
+                        <input type="number" id="input-rate" value="${data.rate}" onchange="updateMonthRate()" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 outline-none focus:ring-1 focus:ring-primary bg-white dark:bg-gray-700">
                     </div>
                     
-                    <div class="w-full sm:w-1/3 relative">
+                    <div class="w-full md:w-1/3 relative">
                         <label class="block text-sm text-gray-500 dark:text-gray-400 mb-1">Horas de Aula no Checklist</label>
                         <button id="btn-hours-dropdown" onclick="document.getElementById('hours-dropdown').classList.toggle('hidden')" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 outline-none text-left flex justify-between items-center bg-white dark:bg-gray-700">
                             <span>Selecionar Horas (${(data.selectedHours || []).length})</span>
@@ -470,18 +483,25 @@
                         </div>
                     </div>
 
-                    <div class="w-full sm:w-1/3 flex justify-end">
-                        <button onclick="clearMonthData()" class="bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50 px-4 py-2 rounded shadow-sm transition w-full sm:w-auto">
+                    <div class="w-full md:w-1/3 flex justify-end">
+                        <button onclick="clearMonthData()" class="bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50 px-4 py-2 rounded shadow-sm transition w-full md:w-auto">
                             <i class="fas fa-trash-alt"></i> Limpar Dados
                         </button>
                     </div>
                 </div>
 
-                <div class="mb-4 flex items-center gap-3">
-                    <label class="text-sm font-semibold text-gray-700 dark:text-gray-300">Selecione o Dia:</label>
-                    <select id="day-selector" onchange="changeDay(this.value)" class="p-2 border rounded dark:bg-gray-700 dark:border-gray-600 outline-none focus:ring-1 focus:ring-primary bg-white dark:bg-gray-800 shadow-sm w-48 font-medium">
-                        ${dayOptions}
-                    </select>
+                <div class="mb-4 flex flex-col md:flex-row items-start md:items-center gap-4">
+                    <div class="flex items-center gap-3">
+                        <label class="text-sm font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">Selecione o Dia:</label>
+                        <select id="day-selector" onchange="changeDay(this.value)" class="p-2 border rounded dark:bg-gray-700 dark:border-gray-600 outline-none focus:ring-1 focus:ring-primary bg-white dark:bg-gray-800 shadow-sm w-48 font-medium">
+                            ${dayOptions}
+                        </select>
+                    </div>
+                    
+                    <div class="flex-1 w-full flex items-center gap-3">
+                        <label class="text-sm font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">Observação do Dia:</label>
+                        <input type="text" onchange="updateDayNote(this.value)" value="${currentDayNote}" placeholder="Ex: Feriado, Folga de férias..." class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 outline-none focus:ring-1 focus:ring-primary bg-white dark:bg-gray-800 shadow-sm font-medium">
+                    </div>
                 </div>
 
                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-x-auto">
@@ -547,6 +567,13 @@
             await saveDataToCloud();
             renderMonthView();
         }, "Erro ao atualizar valor da hora");
+        
+        const updateDayNote = withLog(async (note) => {
+            const data = appData[currentYear][currentMonth];
+            if (!data.dayNotes) data.dayNotes = {};
+            data.dayNotes[currentSelectedDay] = note;
+            await saveDataToCloud();
+        }, "Erro ao atualizar observação do dia");
 
         const toggleMonthHour = withLog(async (hr, isChecked) => {
             const data = appData[currentYear][currentMonth];
@@ -707,7 +734,7 @@
                                             <tr class="bg-gray-50 dark:bg-gray-750 border-b border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400">
                                                 <th class="p-3 w-32 font-semibold">Dia</th>
                                                 <th class="p-3 w-28 font-semibold">Hora</th>
-                                                <th class="p-3 font-semibold">Observação</th>
+                                                <th class="p-3 font-semibold">Observação da Aula</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -762,10 +789,85 @@
         };
 
         /* =========================================================
-           9. EXPORTAÇÃO (Excel e PDF)
+           9. EXPORTAÇÃO E IMPORTAÇÃO (Salvar Projeto Local)
+           ========================================================= */
+           
+        const saveProjectLocal = withLog(async () => {
+            const jsonString = JSON.stringify(appData, null, 2);
+            try {
+                if (window.showSaveFilePicker) {
+                    // API moderna - o navegador lembra a pasta nativamente
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName: 'projeto-controle-aulas.json',
+                        types: [{ description: 'Arquivo JSON', accept: {'application/json': ['.json']} }],
+                    });
+                    const writable = await handle.createWritable();
+                    await writable.write(jsonString);
+                    await writable.close();
+                } else {
+                    // Fallback para navegadores antigos
+                    const blob = new Blob([jsonString], {type: "application/json"});
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = "projeto-controle-aulas.json";
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }
+            } catch (err) {
+                if (err.name !== 'AbortError') throw err; // Ignora se o usuário cancelar
+            }
+        }, "Erro ao salvar projeto local");
+
+        const loadProjectLocal = withLog(async () => {
+            const processLoadedData = (jsonText) => {
+                try {
+                    const parsed = JSON.parse(jsonText);
+                    if (typeof parsed !== 'object' || !parsed) throw new Error("JSON Inválido");
+                    appData = parsed;
+                    saveDataToCloud(); // Sincroniza na nuvem
+                    updateSidebar();
+                    renderMonthView();
+                    alert("Projeto carregado e sincronizado com sucesso!");
+                } catch(e) {
+                    showErrorLog("Arquivo Inválido", "O arquivo selecionado não é um projeto válido.");
+                }
+            };
+
+            try {
+                if (window.showOpenFilePicker) {
+                    const [handle] = await window.showOpenFilePicker({
+                        types: [{ description: 'Arquivo JSON', accept: {'application/json': ['.json']} }],
+                    });
+                    const file = await handle.getFile();
+                    const text = await file.text();
+                    processLoadedData(text);
+                } else {
+                    // Fallback para navegadores antigos
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '.json';
+                    input.onchange = e => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = event => processLoadedData(event.target.result);
+                        reader.readAsText(file);
+                    };
+                    input.click();
+                }
+            } catch (err) {
+                if (err.name !== 'AbortError') throw err;
+            }
+        }, "Erro ao carregar projeto local");
+
+        /* =========================================================
+           10. EXPORTAÇÃO (Excel e PDF)
            ========================================================= */
         const exportToXLS = withLog(() => {
-            const ws_data = [["Ano", "Mês", "Dia", "Dia da Semana", "Hora", "Observação", "Valor (R$)"]];
+            const ws_data = [["Ano", "Mês", "Dia", "Dia da Semana", "Observação do Dia", "Hora", "Observação da Aula", "Valor (R$)"]];
             
             for (const year in appData) {
                 for (const month in appData[year]) {
@@ -775,7 +877,8 @@
                     if (monthData.records) {
                         monthData.records.forEach(rec => {
                             const dow = mIndex >= 0 ? getDayOfWeek(parseInt(year), mIndex, rec.dia) : "";
-                            ws_data.push([year, month, rec.dia, dow, rec.hora, rec.obs, monthData.rate]);
+                            const dayNote = (monthData.dayNotes && monthData.dayNotes[rec.dia]) ? monthData.dayNotes[rec.dia] : "";
+                            ws_data.push([year, month, rec.dia, dow, dayNote, rec.hora, rec.obs, monthData.rate]);
                         });
                     }
                 }
@@ -794,7 +897,7 @@
             doc.setFontSize(18);
             doc.text("Resumo Anual - Controle de Aulas", 14, 20);
             
-            const head = [["Ano", "Mês", "Dia", "Semana", "Hora", "Observação", "Valor (R$)"]];
+            const head = [["Ano", "Mês", "Dia", "Semana", "Obs. Dia", "Hora", "Obs. Aula", "Valor (R$)"]];
             const body = [];
             
             for (const year in appData) {
@@ -805,7 +908,8 @@
                     if (monthData.records) {
                         monthData.records.forEach(rec => {
                             const dow = mIndex >= 0 ? getDayOfWeek(parseInt(year), mIndex, rec.dia) : "";
-                            body.push([year, month, rec.dia, dow, rec.hora, rec.obs, `R$ ${parseFloat(monthData.rate).toFixed(2)}`]);
+                            const dayNote = (monthData.dayNotes && monthData.dayNotes[rec.dia]) ? monthData.dayNotes[rec.dia] : "";
+                            body.push([year, month, rec.dia, dow, dayNote, rec.hora, rec.obs, `R$ ${parseFloat(monthData.rate).toFixed(2)}`]);
                         });
                     }
                 }
@@ -815,7 +919,7 @@
                 head: head,
                 body: body,
                 startY: 30,
-                styles: { fontSize: 10 },
+                styles: { fontSize: 9 },
                 headStyles: { fillColor: [37, 99, 235] }
             });
             
