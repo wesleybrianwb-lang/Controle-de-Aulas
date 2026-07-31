@@ -891,39 +891,77 @@
         }, "Erro ao exportar planilha XLS");
 
         const exportToPDF = withLog(() => {
+            if (!currentYear || !currentMonth || !appData[currentYear] || !appData[currentYear][currentMonth]) {
+                showErrorLog("Nenhum mês selecionado", "Selecione ou crie um ano e um mês para gerar o PDF.");
+                return;
+            }
+
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
-            
+
+            const monthData = appData[currentYear][currentMonth];
+            const mIndex = monthNames.findIndex(m => m.toLowerCase() === currentMonth.toLowerCase());
+            const rate = parseFloat(monthData.rate) || 0;
+
             doc.setFontSize(18);
-            doc.text("Resumo Anual - Controle de Aulas", 14, 20);
-            
-            const head = [["Ano", "Mês", "Dia", "Semana", "Obs. Dia", "Hora", "Obs. Aula", "Valor (R$)"]];
+            doc.text(`Resumo Mensal - ${currentMonth} de ${currentYear}`, 14, 20);
+
+            // Agrupa os registros por dia (para não repetir o mesmo dia em várias linhas)
+            const recordsByDay = {};
+            (monthData.records || []).forEach(rec => {
+                const dia = parseInt(rec.dia);
+                if (!recordsByDay[dia]) recordsByDay[dia] = [];
+                recordsByDay[dia].push(rec);
+            });
+
+            // Ordena os dias em ordem crescente
+            const sortedDays = Object.keys(recordsByDay).map(Number).sort((a, b) => a - b);
+
+            const head = [["Dia", "Semana", "Obs. Dia", "Horários / Observações", "Qtd. Aulas", "Total (R$)"]];
             const body = [];
-            
-            for (const year in appData) {
-                for (const month in appData[year]) {
-                    const monthData = appData[year][month];
-                    const mIndex = monthNames.findIndex(m => m.toLowerCase() === month.toLowerCase());
-                    
-                    if (monthData.records) {
-                        monthData.records.forEach(rec => {
-                            const dow = mIndex >= 0 ? getDayOfWeek(parseInt(year), mIndex, rec.dia) : "";
-                            const dayNote = (monthData.dayNotes && monthData.dayNotes[rec.dia]) ? monthData.dayNotes[rec.dia] : "";
-                            body.push([year, month, rec.dia, dow, dayNote, rec.hora, rec.obs, `R$ ${parseFloat(monthData.rate).toFixed(2)}`]);
-                        });
-                    }
-                }
-            }
-            
+            let totalGeral = 0;
+
+            sortedDays.forEach(dia => {
+                const dayRecords = recordsByDay[dia].slice().sort((a, b) => String(a.hora).localeCompare(String(b.hora)));
+                const dow = mIndex >= 0 ? getDayOfWeek(parseInt(currentYear), mIndex, dia) : "";
+                const dayNote = (monthData.dayNotes && monthData.dayNotes[dia]) ? monthData.dayNotes[dia] : "";
+
+                const horariosText = dayRecords
+                    .map(r => (r.obs && r.obs.trim() !== "") ? `${r.hora} (${r.obs})` : r.hora)
+                    .join("  |  ");
+
+                const qtdHoras = dayRecords.length;
+                const totalDia = qtdHoras * rate;
+                totalGeral += totalDia;
+
+                body.push([
+                    String(dia).padStart(2, '0'),
+                    dow,
+                    dayNote,
+                    horariosText,
+                    qtdHoras,
+                    `R$ ${totalDia.toFixed(2)}`
+                ]);
+            });
+
             doc.autoTable({
                 head: head,
                 body: body,
                 startY: 30,
-                styles: { fontSize: 9 },
-                headStyles: { fillColor: [37, 99, 235] }
+                styles: { fontSize: 9, cellPadding: 3 },
+                headStyles: { fillColor: [37, 99, 235] },
+                columnStyles: {
+                    0: { cellWidth: 15 },
+                    1: { cellWidth: 18 },
+                    3: { cellWidth: 'auto' },
+                    4: { cellWidth: 22, halign: 'center' },
+                    5: { cellWidth: 25, halign: 'right' }
+                },
+                foot: [["", "", "", "", "TOTAL", `R$ ${totalGeral.toFixed(2)}`]],
+                footStyles: { fillColor: [229, 231, 235], textColor: [17, 24, 39], fontStyle: 'bold', halign: 'right' }
             });
-            
-            doc.save("Resumo_Aulas.pdf");
+
+            doc.save(`Resumo_${currentMonth}_${currentYear}.pdf`);
         }, "Erro ao exportar PDF");
 
     </script>
